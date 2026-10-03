@@ -5,6 +5,7 @@ on:
   push:
     paths:
       - "PrankSmsSimulator/**"
+      - "voip-backend/**"
       - ".github/workflows/build-prank-sms.yml"
 
 jobs:
