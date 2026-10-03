@@ -1,0 +1,1 @@
+<resources><style name="Theme.S8StyleTV" parent="android:style/Theme.Material.NoActionBar"><item name="android:fontFamily">sans</item><item name="android:windowFullscreen">true</item><item name="android:colorAccent">#2F80ED</item></style></resources>
