@@ -7,8 +7,8 @@ import android.os.Looper;
 import android.graphics.Color;
 import android.graphics.Typeface;
 import android.view.Gravity;
-import android.view.View;
 import android.widget.*;
+import android.content.SharedPreferences;
 import java.text.SimpleDateFormat;
 import java.util.Date;
 import java.util.Locale;
@@ -19,14 +19,17 @@ public class MainActivity extends Activity {
     private ProgressBar progress;
     private TextView status;
     private Button start;
+    private EditText senderNumber;
     private EditText recipient;
     private EditText message;
     private EditText count;
     private int sent;
     private int total;
+    private SharedPreferences prefs;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
+        prefs = getSharedPreferences("simulator", MODE_PRIVATE);
         buildUi();
     }
 
@@ -68,10 +71,16 @@ public class MainActivity extends Activity {
         root.addView(title, new LinearLayout.LayoutParams(-1, dp(48)));
 
         TextView notice = new TextView(this);
-        notice.setText("SIMULATION ONLY • No SMS are sent");
+        notice.setText("SIMULATION ONLY • No SMS or calls are sent");
         notice.setTextColor(Color.rgb(255,190,70));
         notice.setTextSize(13);
         root.addView(notice, new LinearLayout.LayoutParams(-1, dp(30)));
+
+        root.addView(label("Simulated sender number (display only)"));
+        senderNumber = field("312-555-0123");
+        senderNumber.setSingleLine(true);
+        senderNumber.setText(prefs.getString("sender_number", ""));
+        root.addView(senderNumber, new LinearLayout.LayoutParams(-1, dp(52)));
 
         root.addView(label("Recipient (display only)"));
         recipient = field("555-123-4567");
@@ -120,26 +129,35 @@ public class MainActivity extends Activity {
     }
 
     private void startSimulation() {
+        String configuredSender = senderNumber.getText().toString().trim();
+        if (!configuredSender.isEmpty()) {
+            prefs.edit().putString("sender_number", configuredSender).apply();
+        }
+
         String raw = count.getText().toString().trim();
         try { total = Math.max(1, Math.min(50, Integer.parseInt(raw))); }
         catch (Exception e) { total = 10; }
+
         String text = message.getText().toString().trim();
         if (text.isEmpty()) text = "Simulated prank message";
+
         String who = recipient.getText().toString().trim();
         if (who.isEmpty()) who = "555-123-4567";
 
         final String finalText = text;
         final String finalWho = who;
+        final String finalSender = configuredSender.isEmpty() ? "312-555-0123" : configuredSender;
+
         sent = 0;
         messages.removeAllViews();
         start.setEnabled(false);
         progress.setProgress(0);
-        status.setText("Simulating messages to " + finalWho + "…");
+        status.setText("Simulating " + finalSender + " → " + finalWho + "…");
 
         Runnable task = new Runnable() {
             @Override public void run() {
                 sent++;
-                addBubble(finalText, sent);
+                addBubble(finalSender, finalWho, finalText, sent);
                 progress.setProgress((sent * 100) / total);
                 status.setText("Simulated " + sent + " of " + total);
                 if (sent < total) {
@@ -153,16 +171,19 @@ public class MainActivity extends Activity {
         handler.postDelayed(task, 350);
     }
 
-    private void addBubble(String text, int number) {
+    private void addBubble(String sender, String recipientNumber, String text, int number) {
         LinearLayout row = new LinearLayout(this);
         row.setGravity(Gravity.END);
+
         TextView bubble = new TextView(this);
-        bubble.setText(text + "\n" + new SimpleDateFormat("h:mm:ss a", Locale.US).format(new Date())
+        bubble.setText(sender + " → " + recipientNumber + "\n" + text + "\n"
+                + new SimpleDateFormat("h:mm:ss a", Locale.US).format(new Date())
                 + "  •  SIMULATED #" + number);
         bubble.setTextColor(Color.WHITE);
         bubble.setTextSize(15);
         bubble.setPadding(dp(14), dp(10), dp(14), dp(10));
         bubble.setBackgroundColor(Color.rgb(46,46,58));
+
         LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2);
         p.width = Math.min(dp(310), dp(310));
         p.bottomMargin = dp(8);
