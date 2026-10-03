@@ -9,31 +9,27 @@ import android.graphics.Typeface;
 import android.view.Gravity;
 import android.widget.*;
 import android.content.SharedPreferences;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Locale;
+import java.io.OutputStream;
+import java.net.HttpURLConnection;
+import java.net.URL;
+import java.nio.charset.StandardCharsets;
 
 public class MainActivity extends Activity {
-    private final Handler handler = new Handler(Looper.getMainLooper());
-    private LinearLayout messages;
-    private ProgressBar progress;
-    private TextView status;
-    private Button start;
-    private EditText senderNumber;
-    private EditText recipient;
-    private EditText message;
-    private EditText count;
-    private int sent;
-    private int total;
+    private EditText destination;
+    private EditText endpoint;
+    private EditText status;
     private SharedPreferences prefs;
+    private Button callButton;
 
     @Override public void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
-        prefs = getSharedPreferences("simulator", MODE_PRIVATE);
+        prefs = getSharedPreferences("caller", MODE_PRIVATE);
         buildUi();
     }
 
-    private int dp(float v) { return (int)(v * getResources().getDisplayMetrics().density + .5f); }
+    private int dp(float v) {
+        return (int)(v * getResources().getDisplayMetrics().density + .5f);
+    }
 
     private TextView label(String text) {
         TextView v = new TextView(this);
@@ -51,7 +47,7 @@ public class MainActivity extends Activity {
         e.setHintTextColor(Color.GRAY);
         e.setTextColor(Color.WHITE);
         e.setTextSize(16);
-        e.setSingleLine(false);
+        e.setSingleLine(true);
         e.setPadding(dp(14), dp(10), dp(14), dp(10));
         e.setBackgroundColor(Color.rgb(35,35,43));
         return e;
@@ -64,130 +60,110 @@ public class MainActivity extends Activity {
         root.setBackgroundColor(Color.rgb(16,16,20));
 
         TextView title = new TextView(this);
-        title.setText("Prank SMS Simulator");
+        title.setText("Local Caller");
         title.setTextColor(Color.WHITE);
         title.setTextSize(25);
         title.setTypeface(Typeface.DEFAULT, Typeface.BOLD);
         root.addView(title, new LinearLayout.LayoutParams(-1, dp(48)));
 
         TextView notice = new TextView(this);
-        notice.setText("SIMULATION ONLY • No SMS or calls are sent");
+        notice.setText("REAL CALLS • Uses a configured VoIP provider");
         notice.setTextColor(Color.rgb(255,190,70));
         notice.setTextSize(13);
         root.addView(notice, new LinearLayout.LayoutParams(-1, dp(30)));
 
-        root.addView(label("Simulated sender number (display only)"));
-        senderNumber = field("312-555-0123");
-        senderNumber.setSingleLine(true);
-        senderNumber.setText(prefs.getString("sender_number", ""));
-        root.addView(senderNumber, new LinearLayout.LayoutParams(-1, dp(52)));
+        root.addView(label("Number to call"));
+        destination = field("+13125550123");
+        destination.setText(prefs.getString("destination", ""));
+        root.addView(destination, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        root.addView(label("Recipient (display only)"));
-        recipient = field("555-123-4567");
-        recipient.setSingleLine(true);
-        root.addView(recipient, new LinearLayout.LayoutParams(-1, dp(52)));
+        root.addView(label("Calling service endpoint"));
+        endpoint = field("https://your-server.example.com/call");
+        endpoint.setText(prefs.getString("endpoint", ""));
+        root.addView(endpoint, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        root.addView(label("Prank message"));
-        message = field("This is a simulated prank message!");
-        root.addView(message, new LinearLayout.LayoutParams(-1, dp(70)));
+        TextView info = new TextView(this);
+        info.setText("The server must be configured with your VoIP account and its approved outbound caller ID. The app does not accept an arbitrary caller ID.");
+        info.setTextColor(Color.LTGRAY);
+        info.setTextSize(13);
+        info.setPadding(0, dp(8), 0, dp(12));
+        root.addView(info);
 
-        root.addView(label("Number of simulated messages (1–50)"));
-        count = field("10");
-        count.setSingleLine(true);
-        root.addView(count, new LinearLayout.LayoutParams(-1, dp(52)));
+        callButton = new Button(this);
+        callButton.setText("CALL");
+        callButton.setTextColor(Color.WHITE);
+        callButton.setBackgroundColor(Color.rgb(52, 168, 83));
+        root.addView(callButton, new LinearLayout.LayoutParams(-1, dp(52)));
 
-        start = new Button(this);
-        start.setText("START SIMULATION");
-        start.setTextColor(Color.WHITE);
-        start.setBackgroundColor(Color.rgb(94,92,230));
-        LinearLayout.LayoutParams bp = new LinearLayout.LayoutParams(-1, dp(52));
-        bp.topMargin = dp(12);
-        root.addView(start, bp);
-
-        status = new TextView(this);
-        status.setText("Ready. Nothing will be sent.");
+        status = new EditText(this);
+        status.setText("Ready.");
         status.setTextColor(Color.LTGRAY);
-        status.setGravity(Gravity.CENTER_VERTICAL);
-        root.addView(status, new LinearLayout.LayoutParams(-1, dp(34)));
+        status.setTextSize(14);
+        status.setGravity(Gravity.TOP);
+        status.setFocusable(false);
+        status.setBackgroundColor(Color.TRANSPARENT);
+        root.addView(status, new LinearLayout.LayoutParams(-1, dp(100)));
 
-        progress = new ProgressBar(this, null, android.R.attr.progressBarStyleHorizontal);
-        progress.setMax(100);
-        progress.setProgress(0);
-        root.addView(progress, new LinearLayout.LayoutParams(-1, dp(8)));
-
-        ScrollView scroll = new ScrollView(this);
-        messages = new LinearLayout(this);
-        messages.setOrientation(LinearLayout.VERTICAL);
-        messages.setPadding(0, dp(12), 0, dp(24));
-        scroll.addView(messages);
-        LinearLayout.LayoutParams sp = new LinearLayout.LayoutParams(-1, 0, 1);
-        sp.topMargin = dp(6);
-        root.addView(scroll, sp);
-
-        start.setOnClickListener(v -> startSimulation());
+        callButton.setOnClickListener(v -> placeCall());
         setContentView(root);
     }
 
-    private void startSimulation() {
-        String configuredSender = senderNumber.getText().toString().trim();
-        if (!configuredSender.isEmpty()) {
-            prefs.edit().putString("sender_number", configuredSender).apply();
+    private void placeCall() {
+        final String to = destination.getText().toString().trim();
+        final String url = endpoint.getText().toString().trim();
+
+        if (to.isEmpty()) {
+            status.setText("Enter the number to call.");
+            return;
+        }
+        if (!url.startsWith("https://")) {
+            status.setText("Use an HTTPS calling-service endpoint.");
+            return;
         }
 
-        String raw = count.getText().toString().trim();
-        try { total = Math.max(1, Math.min(50, Integer.parseInt(raw))); }
-        catch (Exception e) { total = 10; }
+        prefs.edit()
+                .putString("destination", to)
+                .putString("endpoint", url)
+                .apply();
 
-        String text = message.getText().toString().trim();
-        if (text.isEmpty()) text = "Simulated prank message";
+        callButton.setEnabled(false);
+        status.setText("Starting call…");
 
-        String who = recipient.getText().toString().trim();
-        if (who.isEmpty()) who = "555-123-4567";
-
-        final String finalText = text;
-        final String finalWho = who;
-        final String finalSender = configuredSender.isEmpty() ? "312-555-0123" : configuredSender;
-
-        sent = 0;
-        messages.removeAllViews();
-        start.setEnabled(false);
-        progress.setProgress(0);
-        status.setText("Simulating " + finalSender + " → " + finalWho + "…");
-
-        Runnable task = new Runnable() {
-            @Override public void run() {
-                sent++;
-                addBubble(finalSender, finalWho, finalText, sent);
-                progress.setProgress((sent * 100) / total);
-                status.setText("Simulated " + sent + " of " + total);
-                if (sent < total) {
-                    handler.postDelayed(this, 350);
-                } else {
-                    start.setEnabled(true);
-                    status.setText("Simulation complete — 0 real SMS sent.");
+        new Thread(() -> {
+            HttpURLConnection connection = null;
+            try {
+                URL target = new URL(url);
+                connection = (HttpURLConnection) target.openConnection();
+                connection.setRequestMethod("POST");
+                connection.setConnectTimeout(15000);
+                connection.setReadTimeout(30000);
+                connection.setDoOutput(true);
+                connection.setRequestProperty("Content-Type", "application/json");
+                String body = "{\"to\":\"" + jsonEscape(to) + "\"}";
+                try (OutputStream out = connection.getOutputStream()) {
+                    out.write(body.getBytes(StandardCharsets.UTF_8));
                 }
+                int code = connection.getResponseCode();
+                runOnUiThread(() -> {
+                    callButton.setEnabled(true);
+                    if (code >= 200 && code < 300) {
+                        status.setText("Call request accepted by the calling service.");
+                    } else {
+                        status.setText("Calling service returned HTTP " + code + ".");
+                    }
+                });
+            } catch (Exception e) {
+                runOnUiThread(() -> {
+                    callButton.setEnabled(true);
+                    status.setText("Call failed: " + e.getMessage());
+                });
+            } finally {
+                if (connection != null) connection.disconnect();
             }
-        };
-        handler.postDelayed(task, 350);
+        }).start();
     }
 
-    private void addBubble(String sender, String recipientNumber, String text, int number) {
-        LinearLayout row = new LinearLayout(this);
-        row.setGravity(Gravity.END);
-
-        TextView bubble = new TextView(this);
-        bubble.setText(sender + " → " + recipientNumber + "\n" + text + "\n"
-                + new SimpleDateFormat("h:mm:ss a", Locale.US).format(new Date())
-                + "  •  SIMULATED #" + number);
-        bubble.setTextColor(Color.WHITE);
-        bubble.setTextSize(15);
-        bubble.setPadding(dp(14), dp(10), dp(14), dp(10));
-        bubble.setBackgroundColor(Color.rgb(46,46,58));
-
-        LinearLayout.LayoutParams p = new LinearLayout.LayoutParams(-2, -2);
-        p.width = Math.min(dp(310), dp(310));
-        p.bottomMargin = dp(8);
-        row.addView(bubble, p);
-        messages.addView(row);
+    private String jsonEscape(String value) {
+        return value.replace("\\", "\\\\").replace("\"", "\\\"");
     }
 }
