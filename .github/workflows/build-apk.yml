@@ -39,6 +39,29 @@ jobs:
           echo "PROJECT_DIR=$PROJECT_DIR" >> "$GITHUB_ENV"
           echo "Building from $PROJECT_DIR"
 
+      - name: Fix JVM target compatibility
+        working-directory: ${{ env.PROJECT_DIR }}
+        run: |
+          python3 - <<'PY'
+          from pathlib import Path
+          p = Path("app/build.gradle.kts")
+          s = p.read_text()
+          s = s.replace(
+              'android { namespace = "com.example.s8styletv"; compileSdk = 35',
+              '''android {
+              namespace = "com.example.s8styletv"
+              compileSdk = 35
+              compileOptions {
+                  sourceCompatibility = JavaVersion.VERSION_17
+                  targetCompatibility = JavaVersion.VERSION_17
+              }'''
+          )
+          if 'kotlin { jvmToolchain(17) }' not in s:
+              s += '\n\nkotlin { jvmToolchain(17) }\n'
+          p.write_text(s)
+          PY
+          cat app/build.gradle.kts
+
       - name: Install Android SDK packages
         run: |
           SDKMANAGER=$(find /usr/local/lib/android/sdk/cmdline-tools -type f -name sdkmanager -print -quit)
