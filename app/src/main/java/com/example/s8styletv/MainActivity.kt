@@ -4,6 +4,7 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
 import androidx.compose.foundation.background
+import androidx.compose.foundation.Image
 import androidx.compose.foundation.focusable
 import androidx.compose.foundation.layout.*
 import androidx.compose.foundation.lazy.LazyColumn
@@ -16,6 +17,8 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.focus.onFocusChanged
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.layout.ContentScale
+import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
@@ -43,7 +46,10 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
  var selected by remember{mutableStateOf("Home")}; var title by remember{mutableStateOf<String?>(null)}; var url by remember{mutableStateOf<String?>(null)}; var channels by remember{mutableStateOf(publicChannels)}
  val nav=listOf("Home","Live TV","Guide","Movies","Favorites","Video Add-ons","Settings")
  MaterialTheme(colorScheme=darkColorScheme(background=Bg,surface=Panel,primary=Accent)){
-  if(url!=null) Player(title?:"Playing",url!!){url=null;title=null} else Column(Modifier.fillMaxSize().background(Bg).padding(28.dp)){
+  if(url!=null) Player(title?:"Playing",url!!){url=null;title=null} else Box(Modifier.fillMaxSize().background(Bg)){
+   Image(painter=painterResource(id=R.drawable.file_000000006a6081f5b0c71265268cefca),contentDescription="The Baker\'s Dozen backdrop",modifier=Modifier.fillMaxSize(),contentScale=ContentScale.Crop)
+   Box(Modifier.fillMaxSize().background(Color.Black.copy(alpha=0.62f)))
+   Column(Modifier.fillMaxSize().padding(28.dp)){
    Header();Spacer(Modifier.height(20.dp));LazyRow(horizontalArrangement=Arrangement.spacedBy(10.dp)){items(nav){n->Nav(n,n==selected){selected=n}}};Spacer(Modifier.height(24.dp))
    when(selected){
     "Home"->Home(channels){title=it.name;url=it.streamUrl}
@@ -53,6 +59,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
     "Favorites"->Live(channels.filter{it.favorite},{title=it.name;url=it.streamUrl}){c->channels=channels.map{if(it.name==c.name)it.copy(favorite=!it.favorite)else it}}
     "Video Add-ons"->VideoAddons()
     else->Settings()
+   }
    }
   }
  }
