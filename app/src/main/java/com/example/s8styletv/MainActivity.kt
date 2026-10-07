@@ -78,32 +78,35 @@ private fun get(u:String):String{val c=URL(u).openConnection() as HttpURLConnect
  val ctx=androidx.compose.ui.platform.LocalContext.current
  val prefs=remember{ctx.getSharedPreferences("s8_addons",android.content.Context.MODE_PRIVATE)}
  var input by remember{mutableStateOf("")}
- var saved by remember { mutableStateOf<List<String>>(prefs.getStringSet("urls", emptySet<String>())?.toList()?.sorted() ?: emptyList()) }
- var message by remember{mutableStateOf("Add a compatible repository, catalog, or provider URL.")}
- fun save(){
+ var saved by remember{mutableStateOf<List<String>>(prefs.getStringSet("urls",emptySet<String>())?.toList()?.sorted()?:emptyList())}
+ var enabled by remember{mutableStateOf<Set<String>>(prefs.getStringSet("enabled",emptySet<String>())?:emptySet())}
+ var message by remember{mutableStateOf("Add an HTTP/HTTPS add-on source you are authorized to use.")}
+ fun persist(){prefs.edit().putStringSet("urls",saved.toSet()).putStringSet("enabled",enabled).apply()}
+ fun install(){
   val u=input.trim()
   if((u.startsWith("https://")||u.startsWith("http://"))&&u.length>10){
-   saved=(saved+u).distinct()
-   prefs.edit().putStringSet("urls",saved.toSet()).apply()
-   input="";message="Add-on source saved."
+   saved=(saved+u).distinct().sorted(); enabled=enabled+u; persist(); input="";message="Source installed and enabled."
   }else message="Enter a valid http:// or https:// URL."
  }
  Column{
   Text("Video Add-ons",color=Color.White,fontSize=30.sp,fontWeight=FontWeight.Bold)
-  Text("User-controlled sources",color=Color.Gray)
+  Text("Install and manage user-supplied sources",color=Color.Gray)
   Spacer(Modifier.height(14.dp))
-  OutlinedTextField(value=input,onValueChange={input=it},label={Text("Repository / add-on URL")},singleLine=true,modifier=Modifier.fillMaxWidth())
+  OutlinedTextField(value=input,onValueChange={input=it},label={Text("Repository / provider URL")},singleLine=true,modifier=Modifier.fillMaxWidth())
   Spacer(Modifier.height(8.dp))
-  Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({save()}){Text("Add Source")};Text(message,color=Color.LightGray,modifier=Modifier.align(Alignment.CenterVertically))}
+  Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({install()}){Text("Install Source")};Text(message,color=Color.LightGray,modifier=Modifier.align(Alignment.CenterVertically))}
   Spacer(Modifier.height(18.dp))
-  if(saved.isEmpty()) Text("No user add-on sources saved yet.",color=Color.Gray)
+  if(saved.isEmpty())Text("No add-on sources installed.",color=Color.Gray)
   LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
    items(saved){u->
+    val on=u in enabled
     Row(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(10.dp)).padding(14.dp),verticalAlignment=Alignment.CenterVertically){
-     Text(u,color=Color.White,modifier=Modifier.weight(1f),maxLines=2)
-     Button({runCatching{ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,Uri.parse(u)))}}){Text("Open")}
+     Column(Modifier.weight(1f)){Text(u,color=Color.White,maxLines=2);Text(if(on)"Enabled" else "Disabled",color=if(on)Color.LightGray else Color.Gray)}
+     Button({enabled=if(on)enabled-u else enabled+u;persist()}){Text(if(on)"Disable" else "Enable")}
      Spacer(Modifier.width(8.dp))
-     TextButton({saved=saved-u;prefs.edit().putStringSet("urls",saved.toSet()).apply()}){Text("Remove")}
+     Button({runCatching{ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,Uri.parse(u)))}.onFailure{message="Could not open source."}}){Text("Open")}
+     Spacer(Modifier.width(8.dp))
+     TextButton({saved=saved-u;enabled=enabled-u;persist();message="Source removed."}){Text("Remove")}
     }
    }
   }
