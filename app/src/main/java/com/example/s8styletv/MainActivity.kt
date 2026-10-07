@@ -78,7 +78,7 @@ private fun get(u:String):String{val c=URL(u).openConnection() as HttpURLConnect
  val ctx=androidx.compose.ui.platform.LocalContext.current
  val prefs=remember{ctx.getSharedPreferences("s8_addons",android.content.Context.MODE_PRIVATE)}
  var input by remember{mutableStateOf("")}
- var saved by remember{mutableStateOf(prefs.getStringSet("urls",emptySet())?.toList()?.sorted()?:emptyList())}
+ var saved by remember { mutableStateOf<List<String>>(prefs.getStringSet("urls", emptySet<String>())?.toList()?.sorted() ?: emptyList()) }
  var message by remember{mutableStateOf("Add a compatible repository, catalog, or provider URL.")}
  fun save(){
   val u=input.trim()
