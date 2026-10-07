@@ -40,7 +40,7 @@ private val publicChannels=listOf(
 class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.onCreate(b);setContent{App()}}}
 @Composable fun App(){
  var selected by remember{mutableStateOf("Home")}; var title by remember{mutableStateOf<String?>(null)}; var url by remember{mutableStateOf<String?>(null)}; var channels by remember{mutableStateOf(publicChannels)}
- val nav=listOf("Home","Live TV","Guide","Movies","Favorites","Settings")
+ val nav=listOf("Home","Live TV","Guide","Movies","Favorites","Video Add-ons","Settings")
  MaterialTheme(colorScheme=darkColorScheme(background=Bg,surface=Panel,primary=Accent)){
   if(url!=null) Player(title?:"Playing",url!!){url=null;title=null} else Column(Modifier.fillMaxSize().background(Bg).padding(28.dp)){
    Header();Spacer(Modifier.height(20.dp));LazyRow(horizontalArrangement=Arrangement.spacedBy(10.dp)){items(nav){n->Nav(n,n==selected){selected=n}}};Spacer(Modifier.height(24.dp))
@@ -50,6 +50,7 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
     "Guide"->Guide(channels)
     "Movies"->Movies{title=it.title;url=it.streamUrl}
     "Favorites"->Live(channels.filter{it.favorite},{title=it.name;url=it.streamUrl}){c->channels=channels.map{if(it.name==c.name)it.copy(favorite=!it.favorite)else it}}
+    "Video Add-ons"->VideoAddons()
     else->Settings()
    }
   }
@@ -65,6 +66,41 @@ class MainActivity:ComponentActivity(){override fun onCreate(b:Bundle?){super.on
 private suspend fun archiveMovies(): List<Movie> = withContext(Dispatchers.IO){val q=URLEncoder.encode("mediatype:movies AND collection:feature_films","UTF-8");val docs=JSONObject(get("https://archive.org/advancedsearch.php?q=$q&fl[]=identifier,title,year,description&rows=20&page=1&output=json")).getJSONObject("response").getJSONArray("docs");val out=mutableListOf<Movie>();for(i in 0 until docs.length()){val d=docs.getJSONObject(i);val id=d.optString("identifier");if(id.isBlank())continue;runCatching{val files=JSONObject(get("https://archive.org/metadata/"+URLEncoder.encode(id,"UTF-8"))).getJSONArray("files");var chosen="";for(j in 0 until files.length()){val f=files.getJSONObject(j);val n=f.optString("name");if(n.endsWith(".mp4",true)&&!n.contains("thumb",true)){chosen=n;break}};if(chosen.isNotBlank())out+=Movie(d.optString("title",id),d.optString("year",""),d.optString("description",""),"https://archive.org/download/$id/"+Uri.encode(chosen))};if(out.size>=12)break};out}
 private fun get(u:String):String{val c=URL(u).openConnection() as HttpURLConnection;c.connectTimeout=10000;c.readTimeout=15000;c.setRequestProperty("User-Agent","S8StyleTV/1.1");return c.inputStream.bufferedReader().use{it.readText()}.also{c.disconnect()}}
 @Composable private fun Guide(cs:List<Channel>){Column{Text("EPG / TV Guide",color=Color.White,fontSize=30.sp,fontWeight=FontWeight.Bold);Text("XMLTV-ready guide. Add a lawful EPG source in Settings.",color=Color.Gray);Spacer(Modifier.height(16.dp));cs.forEach{c->Row(Modifier.fillMaxWidth().padding(vertical=6.dp).background(Panel,RoundedCornerShape(8.dp)).padding(16.dp)){Text(c.name,Modifier.width(190.dp),Color.White,fontWeight=FontWeight.Bold);Text("LIVE  Broadcaster schedule / EPG",color=Color.LightGray)}}}}
+@Composable private fun VideoAddons(){
+ val ctx=androidx.compose.ui.platform.LocalContext.current
+ val prefs=remember{ctx.getSharedPreferences("s8_addons",android.content.Context.MODE_PRIVATE)}
+ var input by remember{mutableStateOf("")}
+ var saved by remember{mutableStateOf(prefs.getStringSet("urls",emptySet())?.toList()?.sorted()?:emptyList())}
+ var message by remember{mutableStateOf("Add a compatible repository, catalog, or provider URL.")}
+ fun save(){
+  val u=input.trim()
+  if((u.startsWith("https://")||u.startsWith("http://"))&&u.length>10){
+   saved=(saved+u).distinct()
+   prefs.edit().putStringSet("urls",saved.toSet()).apply()
+   input="";message="Add-on source saved."
+  }else message="Enter a valid http:// or https:// URL."
+ }
+ Column{
+  Text("Video Add-ons",color=Color.White,fontSize=30.sp,fontWeight=FontWeight.Bold)
+  Text("User-controlled sources",color=Color.Gray)
+  Spacer(Modifier.height(14.dp))
+  OutlinedTextField(value=input,onValueChange={input=it},label={Text("Repository / add-on URL")},singleLine=true,modifier=Modifier.fillMaxWidth())
+  Spacer(Modifier.height(8.dp))
+  Row(horizontalArrangement=Arrangement.spacedBy(10.dp)){Button({save()}){Text("Add Source")};Text(message,color=Color.LightGray,modifier=Modifier.align(Alignment.CenterVertically))}
+  Spacer(Modifier.height(18.dp))
+  if(saved.isEmpty()) Text("No user add-on sources saved yet.",color=Color.Gray)
+  LazyColumn(verticalArrangement=Arrangement.spacedBy(8.dp)){
+   items(saved){u->
+    Row(Modifier.fillMaxWidth().background(Panel,RoundedCornerShape(10.dp)).padding(14.dp),verticalAlignment=Alignment.CenterVertically){
+     Text(u,color=Color.White,modifier=Modifier.weight(1f),maxLines=2)
+     Button({runCatching{ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,Uri.parse(u)))}}){Text("Open")}
+     Spacer(Modifier.width(8.dp))
+     TextButton({saved=saved-u;prefs.edit().putStringSet("urls",saved.toSet()).apply()}){Text("Remove")}
+    }
+   }
+  }
+ }
+}
 @Composable private fun Settings(){
  var auto by remember{mutableStateOf(false)}
  if(auto){AutoSetup{auto=false};return}
