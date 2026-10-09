@@ -90,7 +90,16 @@ private fun get(u:String):String{val c=URL(u).openConnection() as HttpURLConnect
  }
  Column{
   Text("Video Add-ons",color=Color.White,fontSize=30.sp,fontWeight=FontWeight.Bold)
-  Text("Install and manage user-supplied sources",color=Color.Gray)
+  Text("Kodi integration and user-supplied sources",color=Color.Gray)
+  Spacer(Modifier.height(12.dp))
+  val kodiLaunch=ctx.packageManager.getLaunchIntentForPackage("org.xbmc.kodi")
+  Text(if(kodiLaunch!=null) "Kodi detected" else "Kodi not detected",color=Color.White)
+  Text("The Crew and POV require Kodi's Python runtime and are not bundled.",color=Color.LightGray)
+  Button({
+    if(kodiLaunch!=null) ctx.startActivity(kodiLaunch)
+    else ctx.startActivity(android.content.Intent(android.content.Intent.ACTION_VIEW,Uri.parse("https://kodi.tv/download/android/")))
+  }) { Text(if(kodiLaunch!=null) "Launch Kodi" else "Get Kodi") }
+  Text("Install trusted add-ons within Kodi.",color=Color.LightGray)
   Spacer(Modifier.height(14.dp))
   OutlinedTextField(value=input,onValueChange={input=it},label={Text("Repository / provider URL")},singleLine=true,modifier=Modifier.fillMaxWidth())
   Spacer(Modifier.height(8.dp))
