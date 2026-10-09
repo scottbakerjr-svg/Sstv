@@ -1,11 +1,17 @@
-# S8StyleTV
+# Baker's Dozen
 
-Original Android TV streaming app starter. This project is not affiliated with or a copy of SuperBox.
+Android TV media center with a Kodi-inspired interface. This project is not affiliated with Kodi, SuperBox, The Crew, or POV.
 
-## Automatic APK builds
+## Kodi and requested add-ons
 
-GitHub Actions builds a debug APK on every push to `main` and on manual workflow runs. The APK is published as a workflow artifact named `S8StyleTV-debug-apk`.
+Requested video add-ons: **The Crew** and **POV**.
 
-## Build locally
+**Important:** This APK does not currently bundle Kodi, The Crew, or POV, and cannot execute Kodi Python plug-ins. The included KodiZipStager and KodiAddonInstaller only validate/stage ZIP packages inside this application's private storage. They do not install add-ons into Kodi or provide a Kodi Python runtime.
 
-Use Android Studio or Gradle with JDK 17.
+For functional Kodi add-ons, install the official Kodi Android application separately and install authorized add-ons from their respective trusted sources inside Kodi. A future version of Baker's Dozen can detect and launch Kodi, but a standalone Android app cannot silently preinstall add-ons into another app's private data. Third-party add-ons and their dependencies must be reviewed for licensing and authorized media sources before bundling.
+
+## Build
+
+GitHub Actions builds a debug APK from the Android project. Go to Actions > Build APK, choose a successful run, and download the build artifact. The presence of an artifact does not establish Kodi plug-in compatibility.
+
+Android project package: `com.example.s8styletv` (unchanged to preserve upgrade compatibility).
